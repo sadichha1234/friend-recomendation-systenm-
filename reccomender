@@ -1,0 +1,72 @@
+import pandas as pd
+import networkx as nx
+
+class FriendRecommender:
+    def __init__(self, users_path="data/users.csv", edges_path="data/edges.csv"):
+        self.users = pd.read_csv(users_path)
+        self.edges = pd.read_csv(edges_path)
+        self.graph = self._build_graph()
+
+    def _build_graph(self):
+        G = nx.Graph()
+        for _, row in self.users.iterrows():
+            uid = int(row["user_id"])
+            G.add_node(uid, name=row.get("name", f"User_{uid}"), age=int(row.get("age", 0)), location=row.get("location", ""))
+        for _, row in self.edges.iterrows():
+            a = int(row["user_id_1"])
+            b = int(row["user_id_2"])
+            if a != b:
+                G.add_edge(a, b)
+        return G
+
+    def recommend_common_neighbors(self, user_id, top_k=5):
+        preds = []
+        if user_id not in self.graph:
+            return []
+        for node in self.graph.nodes():
+            if node != user_id and not self.graph.has_edge(user_id, node):
+                common = len(list(nx.common_neighbors(self.graph, user_id, node)))
+                preds.append((node, float(common)))
+        preds.sort(key=lambda x: x[1], reverse=True)
+        return preds[:top_k]
+
+    def recommend_jaccard(self, user_id, top_k=5):
+        if user_id not in self.graph:
+            return []
+        pairs = [(user_id, n) for n in self.graph.nodes() if n != user_id and not self.graph.has_edge(user_id, n)]
+        preds = nx.jaccard_coefficient(self.graph, pairs)
+        sorted_preds = sorted(preds, key=lambda x: x[2], reverse=True)
+        return [(b, float(score)) for (_, b, score) in sorted_preds[:top_k]]
+
+    def recommend_adamic_adar(self, user_id, top_k=5):
+        if user_id not in self.graph:
+            return []
+        pairs = [(user_id, n) for n in self.graph.nodes() if n != user_id and not self.graph.has_edge(user_id, n)]
+        preds = nx.adamic_adar_index(self.graph, pairs)
+        sorted_preds = sorted(preds, key=lambda x: x[2], reverse=True)
+        return [(b, float(score)) for (_, b, score) in sorted_preds[:top_k]]
+
+    def recommend_most_popular(self, user_id, top_k=5):
+        if user_id not in self.graph:
+            return []
+        degs = [(n, self.graph.degree(n)) for n in self.graph.nodes() if n != user_id and not self.graph.has_edge(user_id, n)]
+        degs.sort(key=lambda x: x[1], reverse=True)
+        return [(n, float(d)) for n, d in degs[:top_k]]
+
+    def display_recommendations(self, user_id, method="common", top_k=5):
+        methods = {
+            "common": self.recommend_common_neighbors,
+            "jaccard": self.recommend_jaccard,
+            "adamic": self.recommend_adamic_adar,
+            "popular": self.recommend_most_popular
+        }
+        if method not in methods:
+            raise ValueError("Method must be one of: common, jaccard, adamic, popular")
+        recs = methods[method](user_id, top_k)
+        print(f"\nRecommendations for {self.graph.nodes[user_id]['name'] if user_id in self.graph else user_id} using {method.title()} method:")
+        if not recs:
+            print("  (no recommendations found or user_id not in graph)")
+            return
+        for rec_id, score in recs:
+            name = self.graph.nodes[rec_id].get("name", f"User_{rec_id}")
+            print(f"  ➤ {name} (id={rec_id}, score={score:.4f})")
