@@ -1,0 +1,35 @@
+import pandas as pd
+import random
+import os
+
+def generate_users(n=100, out_path="data/users.csv"):
+    random.seed(42)
+    names = [f"User_{{i}}" for i in range(1, n + 1)]
+    ages = [random.randint(18, 45) for _ in range(n)]
+    locations = [random.choice(["Pune", "Mumbai", "Delhi", "Nagpur", "Nashik", "Bengaluru"]) for _ in range(n)]
+    users = pd.DataFrame({{"user_id": range(1, n + 1), "name": names, "age": ages, "location": locations}})
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    users.to_csv(out_path, index=False)
+    print("✅ users.csv created with", n, "users")
+
+def generate_edges(n_users=100, avg_friends=10, out_path="data/edges.csv"):
+    random.seed(42)
+    edges = set()
+    for user in range(1, n_users + 1):
+        # ensure some variability and at least 1 friend
+        num_friends = max(1, random.randint(avg_friends - 5, avg_friends + 5))
+        # choose friends without self
+        possible = list(range(1, n_users + 1))
+        possible.remove(user)
+        friends = random.sample(possible, min(len(possible), num_friends))
+        for f in friends:
+            a, b = sorted((user, f))
+            edges.add((a, b))
+    df_edges = pd.DataFrame(sorted(list(edges)), columns=["user_id_1", "user_id_2"])
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    df_edges.to_csv(out_path, index=False)
+    print("✅ edges.csv created with", len(df_edges), "unique edges")
+
+if __name__ == "__main__":
+    generate_users(100, out_path="data/users.csv")
+    generate_edges(100, avg_friends=10, out_path="data/edges.csv")
